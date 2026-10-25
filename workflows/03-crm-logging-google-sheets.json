@@ -1,0 +1,366 @@
+{
+  "name": "AI Customer Support - CRM Logging",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## AI Customer Support: CRM Logging\nDrafts a reply like the basic version, and also **logs every real customer request in Google Sheets** (contact details, order number, category, urgency). One single AI call does the classification, the reply and the data extraction.\n\n**Setup**\n1. Connect Gmail, Google Gemini and Google Sheets credentials.\n2. Create a Google Sheet whose first row has the headers from `examples/support-log-template.csv`, then select it in **Log to Google Sheets**.\n3. Open **Draft Reply (AI)** and replace every `[BRACKETED]` value.\n4. Send yourself a test email, then activate.",
+        "height": 480,
+        "width": 380,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -460,
+        -220
+      ],
+      "id": "63385d5a-f0dd-4222-a6d1-1b189d8ea60f",
+      "name": "Setup Notes"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "readStatus": "unread"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "1aa2b20b-d9f0-48a0-8255-b3d5860a8c1c",
+      "name": "New Email"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=# ROLE\nYou are the customer support assistant of the online store [STORE NAME]. You read incoming customer emails, identify what the customer needs (order tracking, return, product question...) and write a warm, accurate draft reply. A human from the team reviews every draft before it is sent.\n\n# STORE KNOWLEDGE BASE\nUse ONLY the information below. Never invent prices, delays, stock levels or procedures.\n- Shipping: orders ship within [24/48] hours with [CARRIER] and arrive in [2-4] business days.\n- Order tracking: point the customer to [TRACKING PAGE URL]. If they did not give their order number (e.g. #1234), politely ask for it.\n- Returns & refunds: customers have [14/30] days to return an item. Return labels are generated here: [RETURNS PAGE URL]. Refunds are issued within [X] days after the return is received.\n- Products & sizing: [SIZE GUIDE URL or specific rules, e.g. \"our shoes run large, recommend one size down\"].\n\n# RULES\n1. Language: always reply in the language the customer wrote in.\n2. Tone: warm, reassuring and professional. Address the customer [formally / informally].\n3. Greeting and sign-off: greet the customer by first name when it is known, and end with \"Best regards, The [STORE NAME] team\" (translated into the customer's language). Do not add any other signature: the mailbox adds it.\n4. Missing information (golden rule): if the reply needs something that is not in the knowledge base (exact stock, a delivery incident, a refund status...), still write the full reply, write [TO COMPLETE: what is needed] in capital letters where the information is missing, and set \"missing_info\" to true.\n5. Spam: if the email is advertising, a newsletter, a job application or an automated notification, set \"category\" to \"spam\" and leave \"reply\" empty.\n\n# OUTPUT FORMAT\nReturn ONLY a valid JSON object, without Markdown and without any text before or after it:\n{ \"category\": \"order_tracking | return_refund | product_question | other | spam\", \"urgency\": \"high | medium | low\", \"missing_info\": true or false, \"reply\": \"the full draft reply\", \"customer\": { \"first_name\": \"\", \"last_name\": \"\", \"phone\": \"\", \"order_number\": \"\" } }\nFor the \"customer\" fields, use what appears in the email or its signature, and an empty string when a value is not found.\n\n# INCOMING EMAIL\nFrom: {{ $json.from.text }}\nSubject: {{ $json.subject }}\nBody:\n{{ $json.text || $json.textAsHtml }}",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        240,
+        0
+      ],
+      "id": "e9ca0738-e690-4d66-b3d1-5e3112e9922a",
+      "name": "Draft Reply (AI)"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash",
+        "options": {
+          "temperature": 0.4
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        260,
+        220
+      ],
+      "id": "9cfb42a1-4830-4750-9b80-e3a354b59eaf",
+      "name": "Gemini"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// The AI is asked for pure JSON, but models sometimes add ```json fences or a sentence around it.\n// Keep only what is between the first \"{\" and the last \"}\" before parsing.\nconst raw = $json.text || '';\nconst start = raw.indexOf('{');\nconst end = raw.lastIndexOf('}');\n\ntry {\n  const ai = JSON.parse(raw.slice(start, end + 1));\n  const customer = ai.customer || {};\n  return {\n    json: {\n      category: ai.category || 'other',\n      urgency: ai.urgency || 'medium',\n      missing_info: ai.missing_info === true,\n      reply: ai.reply || '',\n      first_name: customer.first_name || '',\n      last_name: customer.last_name || '',\n      phone: customer.phone || '',\n      order_number: customer.order_number || '',\n    },\n  };\n} catch (error) {\n  // Invalid JSON: never lose a customer email. Create a draft asking for a manual answer instead.\n  return {\n    json: {\n      category: 'parse_error',\n      urgency: 'medium',\n      missing_info: true,\n      reply: '[AI ERROR: no reply could be generated for this email. Please answer it manually.]',\n      first_name: '', last_name: '', phone: '', order_number: '',\n    },\n  };\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        580,
+        0
+      ],
+      "id": "dc09b49a-88fd-4a2c-85c6-a48494dd647f",
+      "name": "Parse AI Output"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "80930ae5-621d-44aa-846a-ec610bbaf9bb",
+              "leftValue": "={{ $json.category }}",
+              "rightValue": "spam",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "66eae44e-3d2e-480b-9f54-195bf32b59a1",
+              "leftValue": "={{ $json.reply }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        800,
+        0
+      ],
+      "id": "fcd7b0f7-8806-4f13-8dfa-35ba84e5ea34",
+      "name": "Customer Email?"
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "subject": "=Re: {{ ($('New Email').item.json.subject || '').replace(/^(re:\\s*)+/i, '') }}",
+        "emailType": "text",
+        "message": "={{ $json.reply }}",
+        "options": {
+          "sendTo": "={{ $('New Email').item.json.from.value[0].address }}",
+          "threadId": "={{ $('New Email').item.json.threadId }}"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1060,
+        -120
+      ],
+      "id": "2dd4a44f-21a1-4b1f-8858-bccf47f09eda",
+      "name": "Create Gmail Draft"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sheet1",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date": "={{ $now.toFormat('yyyy-MM-dd HH:mm') }}",
+            "Customer Email": "={{ $('New Email').item.json.from.value[0].address }}",
+            "First Name": "={{ $json.first_name }}",
+            "Last Name": "={{ $json.last_name }}",
+            "Phone": "={{ $json.phone }}",
+            "Order Number": "={{ $json.order_number }}",
+            "Subject": "={{ $('New Email').item.json.subject }}",
+            "Category": "={{ $json.category }}",
+            "Urgency": "={{ $json.urgency }}",
+            "Needs Info": "={{ $json.missing_info ? 'yes' : 'no' }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Date",
+              "displayName": "Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Customer Email",
+              "displayName": "Customer Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "First Name",
+              "displayName": "First Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Last Name",
+              "displayName": "Last Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Phone",
+              "displayName": "Phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Order Number",
+              "displayName": "Order Number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Subject",
+              "displayName": "Subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Category",
+              "displayName": "Category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Urgency",
+              "displayName": "Urgency",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Needs Info",
+              "displayName": "Needs Info",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1060,
+        120
+      ],
+      "id": "930dd6fa-b948-4b36-bbb5-4b60b10e0916",
+      "name": "Log to Google Sheets"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "New Email": {
+      "main": [
+        [
+          {
+            "node": "Draft Reply (AI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Draft Reply (AI)",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Draft Reply (AI)": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Output": {
+      "main": [
+        [
+          {
+            "node": "Customer Email?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Customer Email?": {
+      "main": [
+        [
+          {
+            "node": "Create Gmail Draft",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": []
+}

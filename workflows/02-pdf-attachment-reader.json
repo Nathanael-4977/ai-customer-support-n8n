@@ -1,0 +1,413 @@
+{
+  "name": "AI Customer Support - PDF Attachment Reader",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## AI Customer Support: PDF Attachment Reader\nSame as the basic version, but when a customer attaches a **PDF** (invoice, order confirmation...), its text is extracted and given to the AI so the reply takes it into account.\n\n**Setup**\n1. Connect your Gmail and Google Gemini credentials.\n2. Open **Draft Reply (AI)** and replace every `[BRACKETED]` value.\n3. Test with an email that has a PDF and one that has none, then activate.\n\nOnly the first attachment is read.",
+        "height": 440,
+        "width": 380,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -460,
+        -160
+      ],
+      "id": "ee83d20a-4f66-4908-abc5-7b702ac25653",
+      "name": "Setup Notes"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "readStatus": "unread"
+        },
+        "options": {
+          "downloadAttachments": true
+        }
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        100
+      ],
+      "id": "2dcf99f3-3a76-46ce-9c2a-d0510ccc065f",
+      "name": "New Email"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "403f5ace-2264-421b-bcac-a3a9edd99b4e",
+              "leftValue": "={{ $binary?.attachment_0?.mimeType === 'application/pdf' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        220,
+        100
+      ],
+      "id": "b666d2fe-c3d9-427a-9a45-adc6e9432953",
+      "name": "Has PDF Attachment?"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "attachment_0",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        460,
+        0
+      ],
+      "id": "fa2845bd-b217-4cab-b6d2-4c8cd3ac6b53",
+      "name": "Extract PDF Text"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "707f7ee0-c41b-4573-bd82-bbd26d6aba73",
+              "name": "from",
+              "value": "={{ $('New Email').item.json.from.text }}",
+              "type": "string"
+            },
+            {
+              "id": "31534f11-2e4d-467f-9e1f-56652de7c6d6",
+              "name": "subject",
+              "value": "={{ $('New Email').item.json.subject }}",
+              "type": "string"
+            },
+            {
+              "id": "5dff1605-3507-4f3d-ba17-f991424fc9df",
+              "name": "body",
+              "value": "={{ $('New Email').item.json.text || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "a348bb37-0489-4bad-9fa9-558f804b0c4f",
+              "name": "attachment_name",
+              "value": "={{ $('New Email').item.binary?.attachment_0?.fileName || 'attachment.pdf' }}",
+              "type": "string"
+            },
+            {
+              "id": "0c079d42-95ad-4395-a07d-17732c71a3eb",
+              "name": "attachment_text",
+              "value": "={{ ($json.text || '').slice(0, 15000) }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        700,
+        0
+      ],
+      "id": "62787499-686d-4738-9442-820ae8f358c2",
+      "name": "Email + PDF"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "96f3a81e-f0a4-47b3-9b25-f388a6a8b7e3",
+              "name": "from",
+              "value": "={{ $json.from.text }}",
+              "type": "string"
+            },
+            {
+              "id": "ca77c961-a621-4faf-a8c0-8c1ef0a15226",
+              "name": "subject",
+              "value": "={{ $json.subject }}",
+              "type": "string"
+            },
+            {
+              "id": "22a5f27d-4bc2-4b18-b7c8-a93077b18483",
+              "name": "body",
+              "value": "={{ $json.text || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "d0b2b108-b497-48fb-8a56-dac169be6de1",
+              "name": "attachment_name",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "e8e5e746-00de-43dc-a77b-a574b5ba9dd5",
+              "name": "attachment_text",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        700,
+        220
+      ],
+      "id": "c1f88b6b-d520-450d-a310-d70b2036e8fd",
+      "name": "Email Only"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=# ROLE\nYou are the customer support assistant of the online store [STORE NAME]. You read incoming customer emails, identify what the customer needs (order tracking, return, product question...) and write a warm, accurate draft reply. A human from the team reviews every draft before it is sent.\n\n# STORE KNOWLEDGE BASE\nUse ONLY the information below. Never invent prices, delays, stock levels or procedures.\n- Shipping: orders ship within [24/48] hours with [CARRIER] and arrive in [2-4] business days.\n- Order tracking: point the customer to [TRACKING PAGE URL]. If they did not give their order number (e.g. #1234), politely ask for it.\n- Returns & refunds: customers have [14/30] days to return an item. Return labels are generated here: [RETURNS PAGE URL]. Refunds are issued within [X] days after the return is received.\n- Products & sizing: [SIZE GUIDE URL or specific rules, e.g. \"our shoes run large, recommend one size down\"].\n\n# RULES\n1. Language: always reply in the language the customer wrote in.\n2. Tone: warm, reassuring and professional. Address the customer [formally / informally].\n3. Greeting and sign-off: greet the customer by first name when it is known, and end with \"Best regards, The [STORE NAME] team\" (translated into the customer's language). Do not add any other signature: the mailbox adds it.\n4. Missing information (golden rule): if the reply needs something that is not in the knowledge base (exact stock, a delivery incident, a refund status...), still write the full reply, write [TO COMPLETE: what is needed] in capital letters where the information is missing, and set \"missing_info\" to true.\n5. Spam: if the email is advertising, a newsletter, a job application or an automated notification, set \"category\" to \"spam\" and leave \"reply\" empty.\n\n# OUTPUT FORMAT\nReturn ONLY a valid JSON object, without Markdown and without any text before or after it:\n{ \"category\": \"order_tracking | return_refund | product_question | other | spam\", \"urgency\": \"high | medium | low\", \"missing_info\": true or false, \"reply\": \"the full draft reply\" }\n\n# INCOMING EMAIL\nFrom: {{ $json.from }}\nSubject: {{ $json.subject }}\nBody:\n{{ $json.body }}\n\n# PDF ATTACHMENT\nFile name: {{ $json.attachment_name || 'none' }}\nExtracted text (use it to understand the request, e.g. an invoice or an order confirmation):\n{{ $json.attachment_text || 'No attachment.' }}",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        960,
+        100
+      ],
+      "id": "1ceb5c38-51d8-4f58-9465-5ede76864fe1",
+      "name": "Draft Reply (AI)"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash",
+        "options": {
+          "temperature": 0.4
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        980,
+        320
+      ],
+      "id": "b6e792af-d015-4f5c-9cec-a7ec06498479",
+      "name": "Gemini"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// The AI is asked for pure JSON, but models sometimes add ```json fences or a sentence around it.\n// Keep only what is between the first \"{\" and the last \"}\" before parsing.\nconst raw = $json.text || '';\nconst start = raw.indexOf('{');\nconst end = raw.lastIndexOf('}');\n\ntry {\n  const ai = JSON.parse(raw.slice(start, end + 1));\n  return {\n    json: {\n      category: ai.category || 'other',\n      urgency: ai.urgency || 'medium',\n      missing_info: ai.missing_info === true,\n      reply: ai.reply || '',\n    },\n  };\n} catch (error) {\n  // Invalid JSON: never lose a customer email. Create a draft asking for a manual answer instead.\n  return {\n    json: {\n      category: 'parse_error',\n      urgency: 'medium',\n      missing_info: true,\n      reply: '[AI ERROR: no reply could be generated for this email. Please answer it manually.]',\n    },\n  };\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1280,
+        100
+      ],
+      "id": "64340056-a07c-4a01-ae96-3a6af6a05d52",
+      "name": "Parse AI Output"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "80930ae5-621d-44aa-846a-ec610bbaf9bb",
+              "leftValue": "={{ $json.category }}",
+              "rightValue": "spam",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "66eae44e-3d2e-480b-9f54-195bf32b59a1",
+              "leftValue": "={{ $json.reply }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1500,
+        100
+      ],
+      "id": "8420d4c6-e2f5-4949-9b1b-2a168bb089e1",
+      "name": "Customer Email?"
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "subject": "=Re: {{ ($('New Email').item.json.subject || '').replace(/^(re:\\s*)+/i, '') }}",
+        "emailType": "text",
+        "message": "={{ $json.reply }}",
+        "options": {
+          "sendTo": "={{ $('New Email').item.json.from.value[0].address }}",
+          "threadId": "={{ $('New Email').item.json.threadId }}"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1740,
+        80
+      ],
+      "id": "df6d0f8b-80b4-4de5-a03c-c43a75740ec2",
+      "name": "Create Gmail Draft"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "New Email": {
+      "main": [
+        [
+          {
+            "node": "Has PDF Attachment?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has PDF Attachment?": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Text",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Email Only",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Text": {
+      "main": [
+        [
+          {
+            "node": "Email + PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email + PDF": {
+      "main": [
+        [
+          {
+            "node": "Draft Reply (AI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Only": {
+      "main": [
+        [
+          {
+            "node": "Draft Reply (AI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Draft Reply (AI)",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Draft Reply (AI)": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Output": {
+      "main": [
+        [
+          {
+            "node": "Customer Email?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Customer Email?": {
+      "main": [
+        [
+          {
+            "node": "Create Gmail Draft",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": []
+}
