@@ -6,7 +6,7 @@ A human stays in the loop: the AI only writes drafts, nothing is sent without be
 
 **Stack:** n8n (self-hosted) · Google Gemini · Gmail API · Google Sheets API · JavaScript
 
-<!-- Add a screenshot of the workflow canvas here: ![Workflow](docs/workflow.png) -->
+<img width="1468" height="682" alt="Workflow" src="https://github.com/user-attachments/assets/f35f2a17-c847-4855-82de-67e6ef7a3d59" />
 
 ## The problem
 
