@@ -1,0 +1,345 @@
+{
+  "name": "AI Cold Email Personalizer",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## AI Cold Email Personalizer\nReads leads from Google Sheets, has Gemini write a **personalised opening line** from a short note about each prospect's store, builds the full email and saves it as a **Gmail draft**. Each lead is then marked as `Drafted`.\n\n**Setup**\n1. Connect Google Sheets, Gmail and Google Gemini credentials.\n2. Create a Google Sheet with the headers from `examples/leads-template.csv` and select it in both Sheets nodes.\n3. Edit **Build Email** with your own pitch, name and phone.\n4. Add leads with Status `Pending` and click **Execute workflow**.",
+        "height": 460,
+        "width": 380,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -460,
+        -220
+      ],
+      "id": "a6d611dd-d08c-47b9-acf8-6c838389fc50",
+      "name": "Setup Notes"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "0b1696a4-7bb0-436e-9175-07b8267a6dd0",
+      "name": "Start"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sheet1",
+          "mode": "name"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Status",
+              "lookupValue": "Pending"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        220,
+        0
+      ],
+      "id": "593c144e-3597-466a-9ed2-5f30a596725d",
+      "name": "Get Pending Leads"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        440,
+        0
+      ],
+      "id": "c0efa5d2-0f47-4fab-bb3d-437154305ca4",
+      "name": "Loop Over Leads"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=# ROLE\nYou are an expert B2B copywriter. Your job is to write the very first sentence of a cold email from a short raw note about the prospect's online store. Grammar and flow must be flawless, as if a human wrote it.\n\n# TASK\nWrite ONE sentence that follows EXACTLY this structure:\nI was looking at your website earlier (great work, [SMOOTH MENTION OF THE RAW NOTE]) and it got me thinking about how much work your customer support must be.\n\n# FLOW RULES (STRICT)\n1. Work out whether the raw note is about a product, a concept, a collection or an initiative.\n2. Adapt the wording inside the parentheses so it reads naturally. Pick the most fitting connector (e.g. \"especially...\", \"special mention for...\", \"I really love...\", \"[the product] is a great touch...\", \"I particularly like how you...\").\n3. Keep the rest of the sentence word for word.\n4. FORMAT: return ONLY the finished sentence. No quotation marks, no greeting, no comment.\n\n# EXAMPLES\nRaw note: \"the brand selection in your catalogue\" (a catalogue)\nOutput: I was looking at your website earlier (great work, special mention for the brand selection in your catalogue!) and it got me thinking about how much work your customer support must be.\n\nRaw note: \"the personalised jewellery concept\" (a concept)\nOutput: I was looking at your website earlier (great work, your personalised jewellery concept is a brilliant idea!) and it got me thinking about how much work your customer support must be.\n\nRaw note: \"i love how they help local fishermen\" (an initiative)\nOutput: I was looking at your website earlier (great work, I particularly like how you support local fishermen!) and it got me thinking about how much work your customer support must be.\n\nRaw note: \"the le claude blouse\" (a specific product)\nOutput: I was looking at your website earlier (great work, I really love the Le Claude blouse!) and it got me thinking about how much work your customer support must be.\n\n# RAW NOTE TO PROCESS\n{{ $json.Icebreaker }}",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        680,
+        -20
+      ],
+      "id": "fdfad8e8-7656-4da6-a53f-1cf09d2f08ee",
+      "name": "Write Opening Line (AI)"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-pro",
+        "options": {
+          "temperature": 0.7
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        700,
+        200
+      ],
+      "id": "b6f6b1b1-2c18-4304-bcc4-4e8f3dce7e76",
+      "name": "Gemini"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "597ff650-254f-4d0f-9aa0-bc9e792cc9c4",
+              "name": "email_body",
+              "value": "=Hi {{ $('Get Pending Leads').item.json['First Name'] }},\n\n{{ $json.text.trim() }} For many e-commerce brands, questions like \"Where is my order?\" or \"How do I return an item?\" flood the inbox and break the team's focus all day long.\n\nThat's exactly what I automate. I build custom AI assistants that plug into your mailbox and handle these recurring requests for you: they filter out the noise and prepare replies in your brand's voice, 24/7. The goal is to take repetitive work off your plate so you can focus on growing the business.\n\nWould you be open to a quick 10-15 minute call in the coming days so I can show you how it works in real conditions?\n\nBest regards,\n[YOUR NAME]\n[YOUR PHONE]",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1000,
+        0
+      ],
+      "id": "1562d841-915f-4e03-87f2-f51a91b1e94d",
+      "name": "Build Email"
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "subject": "=Quick question about customer support at {{ $('Get Pending Leads').item.json.Company }}",
+        "emailType": "text",
+        "message": "={{ $json.email_body }}",
+        "options": {
+          "sendTo": "={{ $('Get Pending Leads').item.json.Email }}"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1220,
+        0
+      ],
+      "id": "d3a9834c-560e-4cef-8fc1-799d029e2f0e",
+      "name": "Create Gmail Draft"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sheet1",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "row_number": "={{ $('Get Pending Leads').item.json.row_number }}",
+            "Status": "Drafted"
+          },
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": [
+            {
+              "id": "Company",
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "First Name",
+              "displayName": "First Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Icebreaker",
+              "displayName": "Icebreaker",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1440,
+        0
+      ],
+      "id": "f7bb1f85-deef-4233-a53b-a3502da9f78e",
+      "name": "Mark as Drafted"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Get Pending Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Pending Leads": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Leads": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Write Opening Line (AI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Write Opening Line (AI)",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Opening Line (AI)": {
+      "main": [
+        [
+          {
+            "node": "Build Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Email": {
+      "main": [
+        [
+          {
+            "node": "Create Gmail Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Gmail Draft": {
+      "main": [
+        [
+          {
+            "node": "Mark as Drafted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark as Drafted": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": []
+}
